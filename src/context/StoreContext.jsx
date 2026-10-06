@@ -405,7 +405,26 @@ export function StoreProvider({ children }) {
     );
     const profit = grandTotal - totalCost;
 
-    const newInvoiceNo = 'INV-' + (1000 + invoices.length + 1);
+    // Guaranteed unique sequential invoice number based on MAX existing numeric ID
+    let maxInvoiceNum = 1000;
+    (invoices || []).forEach((inv) => {
+      if (inv && inv.id) {
+        const m = String(inv.id).match(/^INV-(\d+)$/i);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (!isNaN(n) && n > maxInvoiceNum && n < 10000000) {
+            maxInvoiceNum = n;
+          }
+        }
+      }
+    });
+    let nextNum = maxInvoiceNum + 1;
+    let newInvoiceNo = `INV-${nextNum}`;
+    const existingIds = new Set((invoices || []).map((i) => i.id));
+    while (existingIds.has(newInvoiceNo)) {
+      nextNum++;
+      newInvoiceNo = `INV-${nextNum}`;
+    }
     const now = new Date();
     const dateStr = now.toLocaleDateString('en-GB');
     const timeStr = now.toLocaleTimeString('en-US', {
@@ -541,7 +560,13 @@ export function StoreProvider({ children }) {
         body: JSON.stringify(newInvoice),
       });
 
-      if (!res.ok) {
+      if (res.ok) {
+        const resData = await res.json().catch(() => null);
+        if (resData && resData.invoice && resData.invoice.id && resData.invoice.id !== newInvoice.id) {
+          setInvoices((prev) => prev.map((i) => (i.id === newInvoice.id ? resData.invoice : i)));
+          setActiveInvoiceForPrint(resData.invoice);
+        }
+      } else {
         const pending = getPendingInvoices();
         if (!pending.find((p) => p.id === newInvoice.id)) {
           savePendingInvoices([...pending, newInvoice]);
@@ -797,6 +822,17 @@ export function StoreProvider({ children }) {
   const todayReceived = todayCash + todayJazzCash + todayEasypaisa + todayRaast;
   const todayProfit = todayInvoices.reduce((sum, inv) => sum + (inv.profit || 0), 0);
 
+  // Today Wasooli (Cash recovered from Udhar Khata customers today)
+  const todayWasooli = customers.reduce((sum, cust) => {
+    if (!Array.isArray(cust.history)) return sum;
+    const custTodayPayments = cust.history.filter((h) => {
+      if (h.type !== 'payment') return false;
+      const d = normalizeDateToDDMMYYYY(h.date);
+      return d === todayStr;
+    });
+    return sum + custTodayPayments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  }, 0);
+
   const totalMarketUdhar = customers.reduce((sum, c) => sum + (c.balance || 0), 0);
 
   return (
@@ -840,6 +876,7 @@ export function StoreProvider({ children }) {
         todayUdhar,
         todayProfit,
         todayReceived,
+        todayWasooli,
         todayInvoicesCount: todayInvoices.length,
         totalMarketUdhar,
       }}

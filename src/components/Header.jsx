@@ -30,6 +30,7 @@ export default function Header({ activeTab, setActiveTab, onOpenSettings }) {
     totalMarketUdhar,
     lowStockProducts,
     todayInvoicesCount,
+    todayWasooli,
   } = useStore();
 
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -162,6 +163,16 @@ export default function Header({ activeTab, setActiveTab, onOpenSettings }) {
                 Rs. {todayCash.toLocaleString()}
               </span>
             </div>
+
+            {/* Today Khata Wasooli */}
+            {todayWasooli > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 text-xs font-semibold">Khata Wasooli:</span>
+                <span className="font-['Outfit'] font-black text-teal-400 text-base sm:text-lg">
+                  Rs. {todayWasooli.toLocaleString()}
+                </span>
+              </div>
+            )}
 
             {/* Today Udhar */}
             <div className="flex items-center gap-2">

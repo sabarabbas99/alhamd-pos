@@ -520,6 +520,26 @@ app.post('/api/invoices', async (req, res) => {
   // Always update local cache immediately so no data is ever lost
   try {
     const cached = loadLocalCache() || {};
+    const existing = (cached.invoices || []).find(i => i.id === invoice.id);
+    // If invoice ID collides with an older record, auto re-assign next unique ID
+    if (existing && existing.timestamp && existing.timestamp !== invoice.timestamp) {
+      let maxNum = 1000;
+      (cached.invoices || []).forEach(i => {
+        const m = String(i.id).match(/^INV-(\d+)$/i);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (!isNaN(n) && n > maxNum && n < 10000000) maxNum = n;
+        }
+      });
+      let nextNum = maxNum + 1;
+      while ((cached.invoices || []).some(i => i.id === `INV-${nextNum}`)) {
+        nextNum++;
+      }
+      const safeId = `INV-${nextNum}`;
+      console.warn(`[Anti-Collision] Invoice ${invoice.id} collision resolved -> ${safeId}`);
+      invoice.id = safeId;
+    }
+
     cached.invoices = [invoice, ...(cached.invoices || []).filter(i => i.id !== invoice.id)];
 
     // Deduct stock in cache
